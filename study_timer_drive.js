@@ -3,6 +3,7 @@
 
   const SESSIONS_KEY = 'studyflow.v1.sessions';
   const SUBJECTS_KEY = 'studyflow.v1.subjects';
+  const SUBJECTS_UPDATED_KEY = 'studyflow.v1.subjectsUpdatedAt';
   const CLIENT_ID_KEY = 'studyflow.v1.googleClientId';
   const TOMBSTONES_KEY = 'studyflow.v1.driveDeleted';
   const BASELINE_KEY = 'studyflow.v1.driveBaseline';
@@ -54,7 +55,7 @@
       const name = subject.trim();
       if (name && !subjects.has(name.toLocaleLowerCase())) subjects.set(name.toLocaleLowerCase(), name);
     });
-    return [...subjects.values()].sort((left, right) => left.localeCompare(right));
+    return [...subjects.values()].slice(-5);
   }
 
   function setStatus(message, isError = false) {
@@ -173,7 +174,16 @@
         const remoteSessions = Array.isArray(remote) ? remote : (remote?.sessions || []);
         const remoteSubjects = Array.isArray(remote?.subjects) ? remote.subjects : [];
         const localSubjects = readArray(SUBJECTS_KEY);
-        const mergedSubjects = normalizedSubjects([...remoteSubjects, ...localSubjects]);
+        const remoteSubjectsUpdatedAt = Number.isFinite(remote?.subjectsUpdatedAt) ? remote.subjectsUpdatedAt : 0;
+        const localSubjectsUpdatedAt = Number(localStorage.getItem(SUBJECTS_UPDATED_KEY)) || 0;
+        const hasTimestampedSubjectList = remoteSubjectsUpdatedAt > 0 || localSubjectsUpdatedAt > 0;
+        const localSubjectListIsNewer = localSubjectsUpdatedAt >= remoteSubjectsUpdatedAt;
+        const mergedSubjects = hasTimestampedSubjectList
+          ? normalizedSubjects(localSubjectListIsNewer ? localSubjects : remoteSubjects)
+          : normalizedSubjects([...remoteSubjects, ...localSubjects]);
+        const mergedSubjectsUpdatedAt = hasTimestampedSubjectList
+          ? Math.max(remoteSubjectsUpdatedAt, localSubjectsUpdatedAt)
+          : Date.now();
         (Array.isArray(remote?.deletedIds) ? remote.deletedIds : []).forEach(id => tombstones.add(String(id)));
         const merged = new Map();
         [...remoteSessions, ...localSessions].forEach(session => {
@@ -188,20 +198,24 @@
           updatedAt: new Date().toISOString(),
           sessions: localSessions,
           subjects: mergedSubjects,
+          subjectsUpdatedAt: mergedSubjectsUpdatedAt,
           deletedIds: [...tombstones].sort()
         };
         const oldRemote = remote && !Array.isArray(remote) ? {
           sessions: normalizedSessions(remote.sessions || []),
           subjects: normalizedSubjects(Array.isArray(remote.subjects) ? remote.subjects : []),
+          subjectsUpdatedAt: Number.isFinite(remote.subjectsUpdatedAt) ? remote.subjectsUpdatedAt : 0,
           deletedIds: [...(remote.deletedIds || [])].map(String).sort()
         } : null;
         const nextRemote = {
           sessions: payload.sessions,
           subjects: payload.subjects,
+          subjectsUpdatedAt: payload.subjectsUpdatedAt,
           deletedIds: payload.deletedIds
         };
         localStorage.setItem(SESSIONS_KEY, JSON.stringify(localSessions));
         localStorage.setItem(SUBJECTS_KEY, JSON.stringify(mergedSubjects));
+        localStorage.setItem(SUBJECTS_UPDATED_KEY, String(mergedSubjectsUpdatedAt));
         localStorage.setItem(TOMBSTONES_KEY, JSON.stringify(payload.deletedIds));
         localStorage.setItem(BASELINE_KEY, JSON.stringify(localSessions.map(session => String(session.id))));
         if (JSON.stringify(oldRemote) !== JSON.stringify(nextRemote)) await writeDriveData(payload);

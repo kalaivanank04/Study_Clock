@@ -1,6 +1,6 @@
 # StudyFlow Google Drive Setup
 
-The app can sync completed study sessions and saved subjects through the Google Drive API. The HTML file must be hosted at an HTTPS address before Google sign-in works; opening it directly from the computer will not enable Drive sync or phone access.
+The app can sync completed study sessions and saved subjects through the Google Drive API. It keeps the five most recently added subjects; adding a sixth replaces the oldest. The HTML file must be hosted at an HTTPS address before Google sign-in works; opening it directly from the computer will not enable Drive sync or phone access.
 
 ## Host the app
 
