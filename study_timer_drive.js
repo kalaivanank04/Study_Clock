@@ -252,9 +252,13 @@
   });
 
   document.addEventListener('click', event => {
-    if (event.target.closest('#stop, #clear, #history .icon-btn')) {
+    if (event.target.closest('#stop, #clear, #clearToday, #history .icon-btn')) {
       setTimeout(syncDrive, 250);
     }
+  });
+
+  document.addEventListener('change', event => {
+    if (event.target.matches('#deleteSession')) setTimeout(syncDrive, 250);
   });
 
   window.addEventListener('storage', event => {
