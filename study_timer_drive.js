@@ -2,6 +2,7 @@
   'use strict';
 
   const SESSIONS_KEY = 'studyflow.v1.sessions';
+  const SUBJECTS_KEY = 'studyflow.v1.subjects';
   const CLIENT_ID_KEY = 'studyflow.v1.googleClientId';
   const TOMBSTONES_KEY = 'studyflow.v1.driveDeleted';
   const BASELINE_KEY = 'studyflow.v1.driveBaseline';
@@ -45,6 +46,15 @@
       session.end > session.start && typeof session.subject === 'string' &&
       session.id !== undefined
     );
+  }
+
+  function normalizedSubjects(values) {
+    const subjects = new Map();
+    values.filter(subject => typeof subject === 'string').forEach(subject => {
+      const name = subject.trim();
+      if (name && !subjects.has(name.toLocaleLowerCase())) subjects.set(name.toLocaleLowerCase(), name);
+    });
+    return [...subjects.values()].sort((left, right) => left.localeCompare(right));
   }
 
   function setStatus(message, isError = false) {
@@ -161,6 +171,9 @@
         }
 
         const remoteSessions = Array.isArray(remote) ? remote : (remote?.sessions || []);
+        const remoteSubjects = Array.isArray(remote?.subjects) ? remote.subjects : [];
+        const localSubjects = readArray(SUBJECTS_KEY);
+        const mergedSubjects = normalizedSubjects([...remoteSubjects, ...localSubjects]);
         (Array.isArray(remote?.deletedIds) ? remote.deletedIds : []).forEach(id => tombstones.add(String(id)));
         const merged = new Map();
         [...remoteSessions, ...localSessions].forEach(session => {
@@ -174,17 +187,21 @@
           version: 1,
           updatedAt: new Date().toISOString(),
           sessions: localSessions,
+          subjects: mergedSubjects,
           deletedIds: [...tombstones].sort()
         };
         const oldRemote = remote && !Array.isArray(remote) ? {
           sessions: normalizedSessions(remote.sessions || []),
+          subjects: normalizedSubjects(Array.isArray(remote.subjects) ? remote.subjects : []),
           deletedIds: [...(remote.deletedIds || [])].map(String).sort()
         } : null;
         const nextRemote = {
           sessions: payload.sessions,
+          subjects: payload.subjects,
           deletedIds: payload.deletedIds
         };
         localStorage.setItem(SESSIONS_KEY, JSON.stringify(localSessions));
+        localStorage.setItem(SUBJECTS_KEY, JSON.stringify(mergedSubjects));
         localStorage.setItem(TOMBSTONES_KEY, JSON.stringify(payload.deletedIds));
         localStorage.setItem(BASELINE_KEY, JSON.stringify(localSessions.map(session => String(session.id))));
         if (JSON.stringify(oldRemote) !== JSON.stringify(nextRemote)) await writeDriveData(payload);
@@ -264,4 +281,6 @@
   window.addEventListener('storage', event => {
     if (event.key === SESSIONS_KEY) syncDrive();
   });
+
+  window.addEventListener('studyflow:subjects', syncDrive);
 })();

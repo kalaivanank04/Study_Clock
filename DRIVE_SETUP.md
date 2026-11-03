@@ -1,6 +1,6 @@
 # StudyFlow Google Drive Setup
 
-The app can sync completed study sessions through the Google Drive API. The HTML file must be hosted at an HTTPS address before Google sign-in works; opening it directly from the computer will not enable Drive sync or phone access.
+The app can sync completed study sessions and saved subjects through the Google Drive API. The HTML file must be hosted at an HTTPS address before Google sign-in works; opening it directly from the computer will not enable Drive sync or phone access.
 
 ## Host the app
 
@@ -20,6 +20,6 @@ The OAuth client ID is not a password or client secret. Do not put a client secr
 
 ## Use it on your phone
 
-Open the same published URL on your phone, choose **Connect Google Drive**, enter the same OAuth client ID, and sign in to the same Google account. The app creates `studyflow-sessions.json` in that account's Drive and syncs completed sessions after you stop a timer, delete a session, or clear history. It also checks for updates periodically while open. A running timer is not synced until it is stopped and saved.
+Open the same published URL on your phone, choose **Connect Google Drive**, enter the same OAuth client ID, and sign in to the same Google account. The app creates `studyflow-sessions.json` in that account's Drive and syncs saved subjects when added, plus completed sessions after you stop a timer, delete a session, or clear history. It also checks for updates periodically while open. A running timer is not synced until it is stopped and saved.
 
 Google OAuth setup and site publishing require signing in to your own Google and GitHub accounts; this folder cannot be linked to those accounts automatically.
