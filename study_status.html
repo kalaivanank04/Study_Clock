@@ -66,14 +66,18 @@
         }
       }
 
+      function sessionIntervals(session) {
+        return Array.isArray(session.segments) ? session.segments : [{ start: session.start, end: session.end }];
+      }
+
       function hoursForDay(sessions, key) {
         const start = dayStart(key);
         const end = new Date(start);
         end.setDate(end.getDate() + 1);
         const endTime = end.getTime();
-        return sessions.reduce((total, session) =>
-          total + Math.max(0, Math.min(session.end, endTime) - Math.max(session.start, start)), 0
-        ) / 3600000;
+        return sessions.reduce((total, session) => total + sessionIntervals(session).reduce((sessionTotal, segment) =>
+          sessionTotal + Math.max(0, Math.min(segment.end, endTime) - Math.max(segment.start, start)), 0
+        ), 0) / 3600000;
       }
 
       function hourBuckets(sessions, key) {
@@ -81,9 +85,9 @@
         return Array.from({ length: 24 }, (_, hour) => {
           const hourStart = start + hour * 3600000;
           const hourEnd = hourStart + 3600000;
-          return sessions.reduce((total, session) =>
-            total + Math.max(0, Math.min(session.end, hourEnd) - Math.max(session.start, hourStart)), 0
-          ) / 3600000;
+          return sessions.reduce((total, session) => total + sessionIntervals(session).reduce((sessionTotal, segment) =>
+            sessionTotal + Math.max(0, Math.min(segment.end, hourEnd) - Math.max(segment.start, hourStart)), 0
+          ), 0) / 3600000;
         });
       }
 
