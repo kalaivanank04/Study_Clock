@@ -20,7 +20,9 @@
   button.textContent = 'Connect Google Drive';
   button.setAttribute('aria-label', 'Connect or disconnect Google Drive sync');
   status.setAttribute('role', 'status');
-  status.textContent = 'HTTPS hosting required for phone sync';
+  status.textContent = location.protocol === 'file:'
+    ? 'HTTPS hosting required for phone sync'
+    : 'Not connected to Google Drive';
   status.style.cssText = 'color:#a9bad4;font-size:12px;min-width:110px';
   const actions = document.querySelector('.actions');
   const notice = document.querySelector('.notice');
