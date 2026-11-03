@@ -4,7 +4,7 @@ The app can sync completed study sessions and saved subjects through the Google 
 
 ## Host the app
 
-1. Create a GitHub repository for the app and add `study_timer.html`, `study_timer_drive.js`, and `study_status.html` to its root.
+1. Add all app files to the repository root: `study_timer.html`, `study_timer_drive.js`, `study_status.html`, `chart.umd.min.js`, `offline.js`, `service-worker.js`, `manifest.webmanifest`, and `studyflow-icon.svg`.
 2. In the repository, open **Settings > Pages** and publish from the `main` branch and `/ (root)`.
 3. Open the published `study_timer.html` URL on your computer. It will look like `https://YOUR-USERNAME.github.io/YOUR-REPOSITORY/study_timer.html`.
 
@@ -21,5 +21,9 @@ The OAuth client ID is not a password or client secret. Do not put a client secr
 ## Use it on your phone
 
 Open the same published URL on your phone, choose **Connect Google Drive**, enter the same OAuth client ID, and sign in to the same Google account. The app creates `studyflow-sessions.json` in that account's Drive and syncs saved subjects when added, plus completed sessions after you stop a timer, delete a session, or clear history. It also checks for updates periodically while open. A running timer is not synced until it is stopped and saved.
+
+## Offline use without Drive
+
+Each device stores its own sessions and subjects in that browser. Visit the published app while online at least once so its pages and chart library can be cached, then install it from the browser menu. On iPhone/iPad, use Safari's **Share > Add to Home Screen**. Once installed and cached, the timer, saved local data, and status charts can be used without internet. Data does not automatically transfer between devices unless Google Drive sync is connected.
 
 Google OAuth setup and site publishing require signing in to your own Google and GitHub accounts; this folder cannot be linked to those accounts automatically.

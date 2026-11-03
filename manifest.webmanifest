@@ -1,0 +1,19 @@
+{
+  "id": "./study_timer.html",
+  "name": "StudyFlow Study Timer",
+  "short_name": "StudyFlow",
+  "description": "Track study sessions and review daily progress.",
+  "start_url": "./study_timer.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1221",
+  "theme_color": "#101a2f",
+  "icons": [
+    {
+      "src": "./studyflow-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
