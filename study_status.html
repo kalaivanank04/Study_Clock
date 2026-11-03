@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a2f">
+  <title>Your status | StudyFlow</title>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#e9f0fa;background:#0b1221;font-variant-numeric:tabular-nums}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -25%,#203963 0%,#0b1221 58%)}.wrap{max-width:1080px;margin:auto;padding:28px 20px 56px}header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:38px}.brand{font-size:14px;font-weight:800;color:#80b5ff}.brand a{color:inherit;text-decoration:none}.title{font-size:30px;line-height:1.15;margin:7px 0 0}.muted{color:#91a1ba;font-size:13px}.section{padding:0 0 34px;margin-bottom:34px;border-bottom:1px solid #283a55}.section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:15px}.section h2{font-size:18px;margin:0}.chart-wrap{height:310px;position:relative;width:100%;min-width:0;overflow:hidden}.chart-wrap canvas{display:block;max-width:100%}.days{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;margin:16px 0 22px}.day{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 13px;background:#121e32;color:#d9e7fb;border:1px solid #283a55;border-radius:8px;text-align:left;cursor:pointer;font:inherit}.day:hover,.day:focus-visible{border-color:#80b5ff;outline:none}.day[aria-pressed=true]{background:#203963;border-color:#80b5ff}.day span:first-child{color:#a9bad4;font-size:12px}.day strong{font-size:13px;white-space:nowrap}.empty{padding:40px 10px;text-align:center;color:#99abc3}.selected-date{color:#80b5ff;font-size:13px;font-weight:700}.back{color:#d9e7fb;text-decoration:none;font-size:13px}.back:hover{color:#80b5ff}footer{color:#7688a3;font-size:12px;padding-top:8px}@media(max-width:600px){.wrap{padding:22px 15px 40px}.title{font-size:25px}.chart-wrap{height:260px}.section{padding-bottom:25px;margin-bottom:25px}.days{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div><div class="brand"><a href="study_timer.html">STUDYFLOW</a></div><h1 class="title">Your status</h1></div>
+      <a class="back" href="study_timer.html">Back to timer</a>
+    </header>
+    <section class="section" aria-labelledby="trend-title">
+      <div class="section-head"><h2 id="trend-title">Hours studied each day</h2><span class="muted">Last 14 days</span></div>
+      <div class="chart-wrap"><canvas id="dailyChart" role="img" aria-label="Line chart showing hours studied each day for the last 14 days"></canvas></div>
+    </section>
+    <section class="section" aria-labelledby="daily-title">
+      <div class="section-head"><h2 id="daily-title">Daily totals</h2><span class="muted">Select a day to see study times</span></div>
+      <div id="dayList" class="days"></div>
+      <div class="section-head"><h2>Study times</h2><span id="selectedDate" class="selected-date"></span></div>
+      <div id="hourlyEmpty" class="empty" hidden>No study time recorded for this day.</div>
+      <div class="chart-wrap"><canvas id="hourlyChart" role="img" aria-label="Bar chart showing study hours by time of day"></canvas></div>
+    </section>
+    <footer>Times are shown in your device's local time zone.</footer>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script>
+    (() => {
+      'use strict';
+      const STORAGE_KEY = 'studyflow.v1.sessions';
+      const dayList = document.getElementById('dayList');
+      const selectedDateLabel = document.getElementById('selectedDate');
+      const hourlyEmpty = document.getElementById('hourlyEmpty');
+      const dailyCanvas = document.getElementById('dailyChart');
+      const hourlyCanvas = document.getElementById('hourlyChart');
+      let dailyChart;
+      let hourlyChart;
+      let selectedDay;
+
+      function dateKey(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
+      function dayStart(key) {
+        const [year, month, day] = key.split('-').map(Number);
+        return new Date(year, month - 1, day).getTime();
+      }
+
+      function readSessions() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+          return Array.isArray(parsed) ? parsed.filter(session =>
+            session && Number.isFinite(session.start) && Number.isFinite(session.end) &&
+            session.end > session.start && typeof session.subject === 'string'
+          ) : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function hoursForDay(sessions, key) {
+        const start = dayStart(key);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        const endTime = end.getTime();
+        return sessions.reduce((total, session) =>
+          total + Math.max(0, Math.min(session.end, endTime) - Math.max(session.start, start)), 0
+        ) / 3600000;
+      }
+
+      function hourBuckets(sessions, key) {
+        const start = dayStart(key);
+        return Array.from({ length: 24 }, (_, hour) => {
+          const hourStart = start + hour * 3600000;
+          const hourEnd = hourStart + 3600000;
+          return sessions.reduce((total, session) =>
+            total + Math.max(0, Math.min(session.end, hourEnd) - Math.max(session.start, hourStart)), 0
+          ) / 3600000;
+        });
+      }
+
+      function formatDay(key, options = { weekday: 'short', month: 'short', day: 'numeric' }) {
+        return new Date(dayStart(key)).toLocaleDateString(undefined, options);
+      }
+
+      function formatHours(value) {
+        if (value === 0) return '0 h';
+        const minutes = Math.round(value * 60);
+        const wholeHours = Math.floor(minutes / 60);
+        const remainder = minutes % 60;
+        return wholeHours ? `${wholeHours} h ${remainder} m` : `${remainder} m`;
+      }
+
+      function makeRecentDays() {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return Array.from({ length: 14 }, (_, index) => {
+          const date = new Date(today);
+          date.setDate(today.getDate() - (13 - index));
+          return dateKey(date);
+        });
+      }
+
+      function drawHourlyChart(sessions, key) {
+        const buckets = hourBuckets(sessions, key);
+        const hasStudyTime = buckets.some(value => value > 0);
+        hourlyEmpty.hidden = hasStudyTime;
+        hourlyCanvas.parentElement.hidden = !hasStudyTime;
+        selectedDateLabel.textContent = formatDay(key, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        if (!hasStudyTime) {
+          hourlyChart?.destroy();
+          hourlyChart = undefined;
+          return;
+        }
+        hourlyChart?.destroy();
+        hourlyChart = new Chart(hourlyCanvas, {
+          type: 'bar',
+          data: {
+            labels: Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`),
+            datasets: [{
+              data: buckets,
+              backgroundColor: buckets.map(value => value ? '#70abff' : '#283a55'),
+              borderRadius: 3,
+              maxBarThickness: 22
+            }]
+          },
+          options: {
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: context => `${formatHours(context.parsed.y)} studied` } }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#91a1ba', maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+              y: { beginAtZero: true, grid: { color: '#283a55' }, ticks: { color: '#91a1ba', callback: value => `${value} h` } }
+            }
+          }
+        });
+      }
+
+      function render() {
+        if (typeof Chart === 'undefined') {
+          document.querySelector('.wrap').insertAdjacentHTML('beforeend', '<p class="empty">The chart library could not load. Check your internet connection and reload this page.</p>');
+          return;
+        }
+        const sessions = readSessions();
+        const days = makeRecentDays();
+        if (!selectedDay || !days.includes(selectedDay)) selectedDay = days[days.length - 1];
+        const totals = days.map(key => hoursForDay(sessions, key));
+        dailyChart?.destroy();
+        dailyChart = new Chart(dailyCanvas, {
+          type: 'line',
+          data: {
+            labels: days.map(key => formatDay(key, { month: 'short', day: 'numeric' })),
+            datasets: [{
+              data: totals,
+              borderColor: '#80b5ff',
+              backgroundColor: 'rgba(112,171,255,.14)',
+              pointBackgroundColor: '#fa7b82',
+              pointBorderColor: '#0b1221',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 7,
+              fill: true,
+              tension: .28
+            }]
+          },
+          options: {
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'nearest' },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: context => `${formatHours(context.parsed.y)} studied` } }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#91a1ba', maxRotation: 0, autoSkip: true, maxTicksLimit: 7 } },
+              y: { beginAtZero: true, grid: { color: '#283a55' }, ticks: { color: '#91a1ba', callback: value => `${value} h` } }
+            },
+            onClick: (_event, elements) => {
+              if (elements.length) selectDay(days[elements[0].index]);
+            }
+          }
+        });
+
+        dayList.replaceChildren();
+        days.slice().reverse().forEach(key => {
+          const hours = hoursForDay(sessions, key);
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'day';
+          button.setAttribute('aria-pressed', String(key === selectedDay));
+          const date = document.createElement('span');
+          date.textContent = formatDay(key);
+          const total = document.createElement('strong');
+          total.textContent = formatHours(hours);
+          button.append(date, total);
+          button.addEventListener('click', () => selectDay(key));
+          dayList.append(button);
+        });
+        drawHourlyChart(sessions, selectedDay);
+      }
+
+      function selectDay(key) {
+        selectedDay = key;
+        render();
+      }
+
+      render();
+      window.addEventListener('storage', event => {
+        if (event.key === STORAGE_KEY || event.key === null) render();
+      });
+      window.addEventListener('focus', render);
+    })();
+  </script>
+</body>
+</html>

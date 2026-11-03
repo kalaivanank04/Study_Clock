@@ -4,7 +4,7 @@ The app can sync completed study sessions and saved subjects through the Google 
 
 ## Host the app
 
-1. Create a GitHub repository for the app and add `study_timer.html` and `study_timer_drive.js` to its root.
+1. Create a GitHub repository for the app and add `study_timer.html`, `study_timer_drive.js`, and `study_status.html` to its root.
 2. In the repository, open **Settings > Pages** and publish from the `main` branch and `/ (root)`.
 3. Open the published `study_timer.html` URL on your computer. It will look like `https://YOUR-USERNAME.github.io/YOUR-REPOSITORY/study_timer.html`.
 
