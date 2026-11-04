@@ -5,12 +5,20 @@
   const SUBJECTS_KEY = 'studyflow.v1.subjects';
   const SUBJECTS_UPDATED_KEY = 'studyflow.v1.subjectsUpdatedAt';
   const CLIENT_ID_KEY = 'studyflow.v1.googleClientId';
+  const DRIVE_FILE_ID_KEY = 'studyflow.v1.googleDriveFileId';
   const TOMBSTONES_KEY = 'studyflow.v1.driveDeleted';
   const BASELINE_KEY = 'studyflow.v1.driveBaseline';
   const DRIVE_FILE = 'studyflow-sessions.json';
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
   const button = document.createElement('button');
   const status = document.createElement('span');
+  const clientDialog = document.createElement('dialog');
+  const clientForm = document.createElement('form');
+  const clientLabel = document.createElement('label');
+  const clientInput = document.createElement('input');
+  const dialogActions = document.createElement('div');
+  const cancelButton = document.createElement('button');
+  const continueButton = document.createElement('button');
   let token = null;
   let fileId = null;
   let syncing = false;
@@ -19,18 +27,70 @@
 
   button.type = 'button';
   button.className = 'ghost';
-  button.textContent = 'Connect Google Drive';
+  button.textContent = localStorage.getItem(CLIENT_ID_KEY)
+    ? 'Reconnect Google Drive'
+    : 'Connect Google Drive';
   button.setAttribute('aria-label', 'Connect or disconnect Google Drive sync');
   status.setAttribute('role', 'status');
   status.textContent = location.protocol === 'file:'
     ? 'HTTPS hosting required for phone sync'
-    : 'Not connected to Google Drive';
+    : localStorage.getItem(CLIENT_ID_KEY)
+      ? 'Drive setup remembered; reconnect to sync'
+      : 'Not connected to Google Drive';
   status.style.cssText = 'color:#a9bad4;font-size:12px;min-width:110px';
   const actions = document.querySelector('.actions');
   const notice = document.querySelector('.notice');
   if (!actions) return;
   actions.insertBefore(button, actions.firstChild);
   actions.insertBefore(status, button.nextSibling);
+
+  clientDialog.style.cssText = 'max-width:min(440px,calc(100vw - 32px));border:1px solid #334861;border-radius:12px;padding:24px;background:#121e32;color:#e9f0fa;box-shadow:0 18px 60px #0008';
+  clientForm.noValidate = true;
+  clientLabel.htmlFor = 'googleClientId';
+  clientLabel.textContent = 'Google OAuth Web client ID';
+  clientLabel.style.cssText = 'display:block;margin-bottom:8px;font-weight:700';
+  clientInput.id = 'googleClientId';
+  clientInput.type = 'text';
+  clientInput.autocomplete = 'off';
+  clientInput.spellcheck = false;
+  clientInput.placeholder = '...apps.googleusercontent.com';
+  clientInput.required = true;
+  clientInput.style.cssText = 'width:100%;margin-bottom:16px';
+  dialogActions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px';
+  cancelButton.type = 'button';
+  cancelButton.className = 'ghost';
+  cancelButton.textContent = 'Cancel';
+  continueButton.type = 'submit';
+  continueButton.className = 'primary';
+  continueButton.textContent = 'Continue';
+  dialogActions.append(cancelButton, continueButton);
+  clientForm.append(clientLabel, clientInput, dialogActions);
+  const clientHelp = document.createElement('p');
+  clientHelp.textContent = 'This is the ID ending in .apps.googleusercontent.com, not a password or client secret.';
+  clientHelp.style.cssText = 'color:#a9bad4;font-size:12px;margin:12px 0 0';
+  clientForm.insertBefore(clientHelp, dialogActions);
+  clientDialog.append(clientForm);
+  document.body.append(clientDialog);
+  cancelButton.addEventListener('click', () => clientDialog.close());
+
+  function askForClientId() {
+    clientInput.value = '';
+    clientDialog.showModal();
+    clientInput.focus();
+    return new Promise(resolve => {
+      clientForm.addEventListener('submit', event => {
+        event.preventDefault();
+        const clientId = clientInput.value.trim();
+        if (!clientId) {
+          clientInput.focus();
+          return;
+        }
+        clientDialog.close();
+        resolve(clientId);
+      }, { once: true });
+      clientDialog.addEventListener('close', () => resolve(''), { once: true });
+    });
+  }
 
   function readArray(key) {
     try {
@@ -66,7 +126,7 @@
   function setConnectedNotice(connected) {
     if (!notice) return;
     notice.textContent = connected
-      ? 'Completed sessions sync to Google Drive. Connect the same Google account on your phone and open this hosted page to see the same history. An active timer syncs after you stop it.'
+      ? 'Sessions and saved subjects sync in studyflow-sessions.json. This app finds that file automatically. Connect the same Google account on your other devices; an active timer syncs after Stop & save.'
       : 'Sessions stay in this browser until Drive is connected. For phone access, host this page over HTTPS and connect the same Google account on each device.';
   }
 
@@ -127,6 +187,7 @@
         { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: multipart }
       );
       fileId = (await response.json()).id;
+      localStorage.setItem(DRIVE_FILE_ID_KEY, fileId);
       return;
     }
     await driveRequest(
@@ -161,14 +222,22 @@
         });
 
         let remote = null;
+        if (!fileId) fileId = localStorage.getItem(DRIVE_FILE_ID_KEY);
+        if (fileId) {
+          try {
+            remote = await readDriveData(fileId);
+          } catch {
+            fileId = null;
+            localStorage.removeItem(DRIVE_FILE_ID_KEY);
+          }
+        }
         if (!fileId) {
           const file = await findDriveFile();
           if (file) {
             fileId = file.id;
+            localStorage.setItem(DRIVE_FILE_ID_KEY, fileId);
             remote = await readDriveData(fileId);
           }
-        } else {
-          remote = await readDriveData(fileId);
         }
 
         const remoteSessions = Array.isArray(remote) ? remote : (remote?.sessions || []);
@@ -241,7 +310,7 @@
         },
         error_callback: error => reject(new Error(error.message || 'Google sign-in was closed.'))
       });
-      client.requestAccessToken({ prompt: 'consent' });
+      client.requestAccessToken();
     });
   }
 
@@ -261,7 +330,7 @@
     }
     let clientId = localStorage.getItem(CLIENT_ID_KEY);
     if (!clientId) {
-      clientId = prompt('Enter your Google OAuth Web client ID:')?.trim();
+      clientId = await askForClientId();
       if (!clientId) return;
       localStorage.setItem(CLIENT_ID_KEY, clientId);
     }

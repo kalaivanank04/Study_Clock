@@ -1,8 +1,9 @@
-const CACHE_NAME = 'studyflow-offline-v2';
+const CACHE_NAME = 'studyflow-offline-v3';
 const APP_FILES = [
   './study_timer.html',
   './study_status.html',
   './study_timer_drive.js',
+  './manual_backup.js',
   './offline.js',
   './chart.umd.min.js',
   './manifest.webmanifest',
